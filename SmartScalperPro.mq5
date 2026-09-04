@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
-//|                        SmartScalper Pro AI v5.0                  |
+//|                        SmartScalper Pro AI v5.2                  |
 //|              ADVANCED DEEP LEARNING + NEURAL NETWORK SIGNALS    |
 //|                      Copyright 2026, AI Trading                  |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026 AI Trading"
 #property link      "https://github.com/blacktech589-cyber"
-#property version   "5.0"
+#property version   "5.2"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -32,6 +32,10 @@ input ulong    InpMagicNumber      = 778899;    // Sihirli numara
 input group "📊 TİCARET SAATLERİ"
 input bool     InpAlwaysTrade      = true;      // Her saat işlem
 
+//========== SABİT DIZILER ==========
+#define MAX_CANDLES 100
+#define MAX_BUFFER_SIZE 10
+
 //========== GÖSTERGELER ==========
 int rsi_handle = INVALID_HANDLE;
 int atr_handle = INVALID_HANDLE;
@@ -43,12 +47,13 @@ int bb_handle = INVALID_HANDLE;
 int stoch_handle = INVALID_HANDLE;
 int momentum_handle = INVALID_HANDLE;
 
-MqlRates candles[];
+MqlRates candles[MAX_CANDLES];
 double global_trend_bias = 0.0;
-double neural_weights[];
+double neural_weights[15];
 
 //========== GLOBAL DEĞİŞKENLER ==========
 datetime last_trade_time = 0;
+int candle_count = 0;
 
 struct TradeStats {
     int total_trades;
@@ -64,7 +69,7 @@ TradeStats stats = {0, 0, 0, 0.0, 0.0};
 //+------------------------------------------------------------------+
 int OnInit()
 {
-    Print("🚀 SmartScalper Pro AI v5.0 - NEURAL NETWORK BAŞLATILIYOR!");
+    Print("🚀 SmartScalper Pro AI v5.2 - NEURAL NETWORK BAŞLATILIYOR!");
     Print("================================================");
     
     trade.SetExpertMagicNumber(InpMagicNumber);
@@ -72,22 +77,23 @@ int OnInit()
     trade.SetTypeFilling(ORDER_FILLING_IOC);
     
     // ===== SINIR AĞI AĞIRLIKLARI İNIT =====
-    ArrayResize(neural_weights, 15);
     InitializeNeuralWeights();
     
     // Tarihsel analiz ve trend hesaplama
-    MqlRates hist_rates[];
-    ArraySetAsSeries(hist_rates, true);
+    MqlRates hist_rates[MAX_CANDLES];
+    int copy_count = CopyRates(_Symbol, PERIOD_H1, 0, InpHistoryBars, hist_rates);
     
-    int bars = CopyRates(_Symbol, PERIOD_H1, 0, InpHistoryBars, hist_rates);
-    if(bars > 0)
+    if(copy_count > 0)
     {
         double sum_close = 0;
         double highest = hist_rates[0].high;
         double lowest = hist_rates[0].low;
         double volatility = 0;
         
-        for(int i = 0; i < bars; i++)
+        int bars_to_analyze = copy_count;
+        if(bars_to_analyze > MAX_CANDLES) bars_to_analyze = MAX_CANDLES;
+        
+        for(int i = 0; i < bars_to_analyze; i++)
         {
             sum_close += hist_rates[i].close;
             if(hist_rates[i].high > highest) highest = hist_rates[i].high;
@@ -95,19 +101,19 @@ int OnInit()
         }
         
         // Volatilite hesapla
-        for(int i = 0; i < bars - 1; i++)
+        for(int i = 0; i < bars_to_analyze - 1; i++)
         {
             double change = MathAbs(hist_rates[i].close - hist_rates[i+1].close);
             volatility += change;
         }
-        volatility = volatility / bars;
+        volatility = volatility / bars_to_analyze;
         
-        double avg_price = sum_close / (double)bars;
+        double avg_price = sum_close / (double)bars_to_analyze;
         double current = hist_rates[0].close;
         global_trend_bias = (current - avg_price) / (highest - lowest + 0.00001);
         
         Print("✅ DERİN ÖĞRENME ANALİZİ TAMAMLANDI");
-        Print("   Analiz Edilen Mumlar: ", bars);
+        Print("   Analiz Edilen Mumlar: ", bars_to_analyze);
         Print("   Trend Yönü: ", DoubleToString(global_trend_bias, 3));
         Print("   Volatilite: ", DoubleToString(volatility, 6));
     }
@@ -116,7 +122,7 @@ int OnInit()
     if(!InitializeIndicators())
         return(INIT_FAILED);
     
-    ArrayResize(candles, InpSequenceLength + 10);
+    candle_count = 0;
     
     Print("✅ TÜM SINIR AĞI MODÜLLERİ BAŞARILI!");
     Print("✅ AI EXPERT HAZIR - İŞLEM MODUNDA GİRİŞ!");
@@ -250,7 +256,7 @@ void OnTick()
     if(spread > InpMaxSpread) 
         return;
     
-    double atr_vals[];
+    double atr_vals[MAX_BUFFER_SIZE];
     ArraySetAsSeries(atr_vals, true);
     if(CopyBuffer(atr_handle, 0, 0, 1, atr_vals) <= 0) 
         return;
@@ -300,25 +306,12 @@ int AnalyzeNeuralSignals(double &buy_prob, double &sell_prob)
 {
     int strength = 0;
     
-    // Buffer dizileri
-    double fast[], mid[], slow[], rsi[];
-    double macd_main[], macd_signal[];
-    double bb_upper[], bb_lower[];
-    double stoch_main[], stoch_signal[];
-    double momentum[];
-    
-    // Dizi boyutlarını ayarla
-    ArrayResize(fast, 2);
-    ArrayResize(mid, 2);
-    ArrayResize(slow, 2);
-    ArrayResize(rsi, 2);
-    ArrayResize(macd_main, 2);
-    ArrayResize(macd_signal, 2);
-    ArrayResize(bb_upper, 2);
-    ArrayResize(bb_lower, 2);
-    ArrayResize(stoch_main, 2);
-    ArrayResize(stoch_signal, 2);
-    ArrayResize(momentum, 2);
+    // Buffer dizileri - STATIK BOYUT
+    double fast[MAX_BUFFER_SIZE], mid[MAX_BUFFER_SIZE], slow[MAX_BUFFER_SIZE], rsi[MAX_BUFFER_SIZE];
+    double macd_main[MAX_BUFFER_SIZE], macd_signal[MAX_BUFFER_SIZE];
+    double bb_upper[MAX_BUFFER_SIZE], bb_lower[MAX_BUFFER_SIZE];
+    double stoch_main[MAX_BUFFER_SIZE], stoch_signal[MAX_BUFFER_SIZE];
+    double momentum[MAX_BUFFER_SIZE];
     
     // Tüm diziyi seri ayarla
     ArraySetAsSeries(fast, true);
@@ -345,6 +338,8 @@ int AnalyzeNeuralSignals(double &buy_prob, double &sell_prob)
     if(CopyBuffer(stoch_handle, 0, 0, 2, stoch_main) <= 0) return 0;
     if(CopyBuffer(stoch_handle, 1, 0, 2, stoch_signal) <= 0) return 0;
     if(CopyBuffer(momentum_handle, 0, 0, 2, momentum) <= 0) return 0;
+    
+    if(candle_count == 0) return 0;
     
     double close = candles[0].close;
     double bb_middle = (bb_upper[0] + bb_lower[0]) / 2.0;
@@ -502,8 +497,7 @@ int RecognizePattern(double rsi_val, double stoch_val)
 double CalculateNeuralOutput(double buy, double sell, double rsi, double stoch)
 {
     // Giriş vektörü normalize et
-    double inputs[];
-    ArrayResize(inputs, 4);
+    double inputs[4];
     inputs[0] = buy;
     inputs[1] = sell;
     inputs[2] = rsi / 100.0;
@@ -627,27 +621,27 @@ void CheckOpenPositions(double ask, double bid)
 }
 
 //+------------------------------------------------------------------+
-//| MUM VERİSİ GÜNCELLE                                              |
+//| MUM VERİSİ GÜNCELLE - STATIK DIZI KULLANIMI                       |
 //+------------------------------------------------------------------+
 bool UpdateCandleData()
 {
-    MqlRates temp_rates[];
+    MqlRates temp_rates[MAX_CANDLES];
     ArraySetAsSeries(temp_rates, true);
     
-    int needed = InpSequenceLength + 5;
-    int copied = CopyRates(_Symbol, PERIOD_H1, 0, needed, temp_rates);
+    int copied = CopyRates(_Symbol, PERIOD_H1, 0, MAX_CANDLES, temp_rates);
     
-    if(copied < InpSequenceLength)
+    if(copied < 50)
     {
-        Print("⚠️ Yeterli mum yok: ", copied, " / ", InpSequenceLength);
+        Print("⚠️ Yeterli mum yok: ", copied, " / 50");
         return false;
     }
     
-    if(ArrayResize(candles, InpSequenceLength) < 0)
-        return false;
-    
-    if(ArrayCopy(candles, temp_rates, 0, 0, InpSequenceLength) < 0)
-        return false;
+    // Verileri kopyala - SABİT BOYUT
+    for(int i = 0; i < 50; i++)
+    {
+        candles[i] = temp_rates[i];
+    }
+    candle_count = 50;
     
     return true;
 }
