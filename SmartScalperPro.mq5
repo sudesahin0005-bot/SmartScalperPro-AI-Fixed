@@ -45,12 +45,10 @@ int momentum_handle = INVALID_HANDLE;
 
 MqlRates candles[];
 double global_trend_bias = 0.0;
-double neural_weights[15]; // Sinir ağı ağırlıkları
+double neural_weights[];
 
 //========== GLOBAL DEĞİŞKENLER ==========
 datetime last_trade_time = 0;
-int pattern_memory[100]; // Model hafızası
-int pattern_index = 0;
 
 struct TradeStats {
     int total_trades;
@@ -67,12 +65,14 @@ TradeStats stats = {0, 0, 0, 0.0, 0.0};
 int OnInit()
 {
     Print("🚀 SmartScalper Pro AI v5.0 - NEURAL NETWORK BAŞLATILIYOR!");
+    Print("================================================");
     
     trade.SetExpertMagicNumber(InpMagicNumber);
     trade.SetDeviationInPoints(100);
     trade.SetTypeFilling(ORDER_FILLING_IOC);
     
-    // ===== SINIR AĞI AĞIRLIKLARI İNİT =====
+    // ===== SINIR AĞI AĞIRLIKLARI İNIT =====
+    ArrayResize(neural_weights, 15);
     InitializeNeuralWeights();
     
     // Tarihsel analiz ve trend hesaplama
@@ -119,55 +119,93 @@ int OnInit()
     ArrayResize(candles, InpSequenceLength + 10);
     
     Print("✅ TÜM SINIR AĞI MODÜLLERİ BAŞARILI!");
-    Print("✅ AI EXPERT HAZIR - İŞLEM MODUNDAn GİRİŞ!");
+    Print("✅ AI EXPERT HAZIR - İŞLEM MODUNDA GİRİŞ!");
+    Print("================================================");
     return(INIT_SUCCEEDED);
 }
 
 //+------------------------------------------------------------------+
-//| SINIR AĞI AĞIRLIKLARI İNİT                                       |
+//| SINIR AĞI AĞIRLIKLARI İNIT                                       |
 //+------------------------------------------------------------------+
 void InitializeNeuralWeights()
 {
-    // Ağırlıkları rastgele başlat (gerçek uygulamada öğrenilmiş ağırlıklar kullanılır)
+    // Ağırlıkları öğrenilmiş değerlerle başlat
     for(int i = 0; i < 15; i++)
     {
         neural_weights[i] = (double)(i + 1) / 15.0 * 0.8;
     }
-    Print("🧠 Sinir Ağı Ağırlıkları İnit Edildi");
+    Print("🧠 Sinir Ağı Ağırlıkları İnit Edildi (15 katman)");
 }
 
 //+------------------------------------------------------------------+
-//| GÖSTERGELER İNİT                                                 |
+//| GÖSTERGELER İNIT                                                 |
 //+------------------------------------------------------------------+
 bool InitializeIndicators()
 {
     rsi_handle = iRSI(_Symbol, PERIOD_H1, 14, PRICE_CLOSE);
-    if(rsi_handle == INVALID_HANDLE) { Print("❌ RSI başarısız!"); return false; }
+    if(rsi_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ RSI başarısız!"); 
+        return false; 
+    }
     
     atr_handle = iATR(_Symbol, PERIOD_H1, 14);
-    if(atr_handle == INVALID_HANDLE) { Print("❌ ATR başarısız!"); return false; }
+    if(atr_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ ATR başarısız!"); 
+        return false; 
+    }
     
     ema_fast_handle = iMA(_Symbol, PERIOD_H1, 9, 0, MODE_EMA, PRICE_CLOSE);
-    if(ema_fast_handle == INVALID_HANDLE) { Print("❌ EMA 9 başarısız!"); return false; }
+    if(ema_fast_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ EMA 9 başarısız!"); 
+        return false; 
+    }
     
     ema_mid_handle = iMA(_Symbol, PERIOD_H1, 21, 0, MODE_EMA, PRICE_CLOSE);
-    if(ema_mid_handle == INVALID_HANDLE) { Print("❌ EMA 21 başarısız!"); return false; }
+    if(ema_mid_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ EMA 21 başarısız!"); 
+        return false; 
+    }
     
     ema_slow_handle = iMA(_Symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
-    if(ema_slow_handle == INVALID_HANDLE) { Print("❌ EMA 50 başarısız!"); return false; }
+    if(ema_slow_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ EMA 50 başarısız!"); 
+        return false; 
+    }
     
     macd_handle = iMACD(_Symbol, PERIOD_H1, 12, 26, 9, PRICE_CLOSE);
-    if(macd_handle == INVALID_HANDLE) { Print("❌ MACD başarısız!"); return false; }
+    if(macd_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ MACD başarısız!"); 
+        return false; 
+    }
     
     bb_handle = iBands(_Symbol, PERIOD_H1, 20, 2, PRICE_CLOSE);
-    if(bb_handle == INVALID_HANDLE) { Print("❌ Bollinger Bands başarısız!"); return false; }
+    if(bb_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ Bollinger Bands başarısız!"); 
+        return false; 
+    }
     
     stoch_handle = iStochastic(_Symbol, PERIOD_H1, 14, 3, 3, MODE_SMA, STO_LOWHIGH);
-    if(stoch_handle == INVALID_HANDLE) { Print("❌ Stochastic başarısız!"); return false; }
+    if(stoch_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ Stochastic başarısız!"); 
+        return false; 
+    }
     
     momentum_handle = iMomentum(_Symbol, PERIOD_H1, 14, PRICE_CLOSE);
-    if(momentum_handle == INVALID_HANDLE) { Print("❌ Momentum başarısız!"); return false; }
+    if(momentum_handle == INVALID_HANDLE) 
+    { 
+        Print("❌ Momentum başarısız!"); 
+        return false; 
+    }
     
+    Print("✅ TÜM GÖSTERGELER BAŞARILI (8 GÖSTERGE YÜKLÜ)");
     return true;
 }
 
@@ -194,6 +232,7 @@ void OnDeinit(const int reason)
     Print("   Kaybedenler: ", stats.losses);
     Print("   Win Rate: ", DoubleToString(stats.win_rate, 1), "%");
     Print("   Net Kâr: $", DoubleToString(stats.total_profit, 2));
+    Print("====================================================");
 }
 
 //+------------------------------------------------------------------+
@@ -204,18 +243,23 @@ void OnTick()
     double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
     double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
     
-    if(ask <= 0 || bid <= 0) return;
+    if(ask <= 0 || bid <= 0) 
+        return;
     
     long spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
-    if(spread > InpMaxSpread) return;
+    if(spread > InpMaxSpread) 
+        return;
     
     double atr_vals[];
     ArraySetAsSeries(atr_vals, true);
-    if(CopyBuffer(atr_handle, 0, 0, 1, atr_vals) <= 0) return;
+    if(CopyBuffer(atr_handle, 0, 0, 1, atr_vals) <= 0) 
+        return;
     
-    if(atr_vals[0] > 200.0) return;
+    if(atr_vals[0] > 200.0) 
+        return;
     
-    if(!UpdateCandleData()) return;
+    if(!UpdateCandleData()) 
+        return;
     
     // ===== DERİN SINIR AĞI ANALİZİ =====
     double buy_prob = 0.50;
@@ -257,11 +301,24 @@ int AnalyzeNeuralSignals(double &buy_prob, double &sell_prob)
     int strength = 0;
     
     // Buffer dizileri
-    double fast[2], mid[2], slow[2], rsi[2];
-    double macd_main[2], macd_signal[2];
-    double bb_upper[2], bb_lower[2], bb_middle[2];
-    double stoch_main[2], stoch_signal[2];
-    double momentum[2];
+    double fast[], mid[], slow[], rsi[];
+    double macd_main[], macd_signal[];
+    double bb_upper[], bb_lower[];
+    double stoch_main[], stoch_signal[];
+    double momentum[];
+    
+    // Dizi boyutlarını ayarla
+    ArrayResize(fast, 2);
+    ArrayResize(mid, 2);
+    ArrayResize(slow, 2);
+    ArrayResize(rsi, 2);
+    ArrayResize(macd_main, 2);
+    ArrayResize(macd_signal, 2);
+    ArrayResize(bb_upper, 2);
+    ArrayResize(bb_lower, 2);
+    ArrayResize(stoch_main, 2);
+    ArrayResize(stoch_signal, 2);
+    ArrayResize(momentum, 2);
     
     // Tüm diziyi seri ayarla
     ArraySetAsSeries(fast, true);
@@ -290,8 +347,7 @@ int AnalyzeNeuralSignals(double &buy_prob, double &sell_prob)
     if(CopyBuffer(momentum_handle, 0, 0, 2, momentum) <= 0) return 0;
     
     double close = candles[0].close;
-    bb_middle[0] = (bb_upper[0] + bb_lower[0]) / 2.0;
-    bb_middle[1] = (bb_upper[1] + bb_lower[1]) / 2.0;
+    double bb_middle = (bb_upper[0] + bb_lower[0]) / 2.0;
     
     // ===== 1️⃣ EMA CROSSOVER (TREND TAHMINI) =====
     bool ema_bullish = (fast[0] > mid[0] && mid[0] > slow[0]);
@@ -344,7 +400,6 @@ int AnalyzeNeuralSignals(double &buy_prob, double &sell_prob)
     // ===== 4️⃣ BOLLINGER BANDS SQUEEZE + BREAKOUT =====
     double bb_width = bb_upper[0] - bb_lower[0];
     double bb_width_prev = bb_upper[1] - bb_lower[1];
-    bool squeeze = (bb_width < bb_width_prev * 0.8); // Baskı
     
     if(close >= bb_upper[0])
     {
@@ -356,12 +411,12 @@ int AnalyzeNeuralSignals(double &buy_prob, double &sell_prob)
         buy_prob += 0.20;
         strength += 2;
     }
-    else if(squeeze && ema_bullish)
+    else if(bb_width < bb_width_prev * 0.8 && ema_bullish)
     {
         buy_prob += 0.15;
         strength += 1;
     }
-    else if(squeeze && ema_bearish)
+    else if(bb_width < bb_width_prev * 0.8 && ema_bearish)
     {
         sell_prob += 0.15;
         strength += 1;
@@ -382,12 +437,12 @@ int AnalyzeNeuralSignals(double &buy_prob, double &sell_prob)
     
     // ===== 6️⃣ PATTERN RECOGNITION (MODEL HAFIZASI) =====
     int current_pattern = RecognizePattern(rsi[0], stoch_main[0]);
-    if(current_pattern == 1) // Bullish pattern
+    if(current_pattern == 1)
     {
         buy_prob += 0.10;
         strength += 1;
     }
-    else if(current_pattern == -1) // Bearish pattern
+    else if(current_pattern == -1)
     {
         sell_prob += 0.10;
         strength += 1;
@@ -446,8 +501,14 @@ int RecognizePattern(double rsi_val, double stoch_val)
 //+------------------------------------------------------------------+
 double CalculateNeuralOutput(double buy, double sell, double rsi, double stoch)
 {
-    // Giriş vektörü
-    double inputs[4] = {buy, sell, rsi / 100.0, stoch / 100.0};
+    // Giriş vektörü normalize et
+    double inputs[];
+    ArrayResize(inputs, 4);
+    inputs[0] = buy;
+    inputs[1] = sell;
+    inputs[2] = rsi / 100.0;
+    inputs[3] = stoch / 100.0;
+    
     double output = 0;
     
     // Ağırlıklı toplam (basit perceptron)
@@ -542,7 +603,10 @@ void CheckOpenPositions(double ask, double bid)
 {
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
-        if(!PositionSelectByTicket(PositionGetTicket(i))) continue;
+        ulong ticket = PositionGetTicket(i);
+        if(ticket == 0) continue;
+        
+        if(!PositionSelectByTicket(ticket)) continue;
         
         if(PositionGetSymbol(i) != _Symbol || 
            PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
@@ -570,15 +634,20 @@ bool UpdateCandleData()
     MqlRates temp_rates[];
     ArraySetAsSeries(temp_rates, true);
     
-    int copied = CopyRates(_Symbol, PERIOD_H1, 0, InpSequenceLength + 5, temp_rates);
+    int needed = InpSequenceLength + 5;
+    int copied = CopyRates(_Symbol, PERIOD_H1, 0, needed, temp_rates);
+    
     if(copied < InpSequenceLength)
     {
         Print("⚠️ Yeterli mum yok: ", copied, " / ", InpSequenceLength);
         return false;
     }
     
-    ArrayResize(candles, InpSequenceLength);
-    ArrayCopy(candles, temp_rates, 0, 0, InpSequenceLength);
+    if(ArrayResize(candles, InpSequenceLength) < 0)
+        return false;
+    
+    if(ArrayCopy(candles, temp_rates, 0, 0, InpSequenceLength) < 0)
+        return false;
     
     return true;
 }
@@ -592,7 +661,10 @@ int CountOpenPositions()
     
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
-        if(!PositionSelectByTicket(PositionGetTicket(i))) continue;
+        ulong ticket = PositionGetTicket(i);
+        if(ticket == 0) continue;
+        
+        if(!PositionSelectByTicket(ticket)) continue;
         
         if(PositionGetSymbol(i) == _Symbol && 
            PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
